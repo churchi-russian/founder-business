@@ -1,0 +1,585 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Garimpo — encontre comércios sem site (ou com site fraco)</title>
+<meta name="description" content="Ferramenta de prospecção: encontre comércios bem avaliados no Google que ainda não têm site.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#0D0C0A;
+    --ink-2:#161310;
+    --panel:#1B1712;
+    --panel-2:#221D16;
+    --gold:#C4A25F;
+    --gold-light:#E3CB92;
+    --gold-deep:#8A7038;
+    --cream:#EDE7D8;
+    --muted:#A79C8A;
+    --muted-2:#71685A;
+    --line:rgba(237,231,216,0.10);
+    --good:#7BB483;
+    --warn:#BD8952;
+    --danger:#B96B60;
+    --maxw:1180px;
+    --radius:8px;
+  }
+  *,*::before,*::after{box-sizing:border-box;}
+  html{-webkit-text-size-adjust:100%;}
+  body{margin:0;background:var(--ink);color:var(--cream);font-family:'Inter',sans-serif;line-height:1.55;-webkit-font-smoothing:antialiased;}
+  h1,h2,h3{font-family:'Space Grotesk',sans-serif;font-weight:600;margin:0;letter-spacing:-0.01em;}
+  a{color:inherit;}
+  button{font-family:inherit;cursor:pointer;}
+  input,select,textarea{font-family:inherit;}
+  ::selection{background:var(--gold);color:var(--ink);}
+  :focus-visible{outline:2px solid var(--gold-light);outline-offset:2px;}
+  .wrap{max-width:var(--maxw);margin:0 auto;padding:0 1.4rem;}
+  .mono{font-family:'JetBrains Mono',monospace;}
+
+  /* ---------- topbar ---------- */
+  header.top{position:sticky;top:0;z-index:50;background:rgba(13,12,10,0.92);backdrop-filter:blur(8px);border-bottom:1px solid var(--line);}
+  .top-inner{max-width:var(--maxw);margin:0 auto;padding:0.9rem 1.4rem;display:flex;align-items:center;justify-content:space-between;gap:1rem;}
+  .brand{display:flex;align-items:center;gap:0.6rem;font-family:'Space Grotesk',sans-serif;font-size:1.15rem;font-weight:700;letter-spacing:0.01em;}
+  .brand .mark{width:30px;height:30px;border-radius:7px;background:linear-gradient(150deg,var(--gold-light),var(--gold-deep));display:flex;align-items:center;justify-content:center;flex:none;}
+  .brand .mark svg{width:17px;height:17px;color:#1A1409;}
+  .brand small{display:block;font-family:'JetBrains Mono',monospace;font-size:0.6rem;letter-spacing:0.16em;color:var(--muted-2);text-transform:uppercase;margin-top:1px;}
+  .key-status{display:flex;align-items:center;gap:0.6rem;}
+  .key-dot{width:7px;height:7px;border-radius:50%;background:var(--danger);flex:none;}
+  .key-dot.ok{background:var(--good);}
+  .key-label{font-size:0.76rem;color:var(--muted);font-family:'JetBrains Mono',monospace;}
+  .btn{display:inline-flex;align-items:center;gap:0.5rem;padding:0.65rem 1.1rem;border-radius:100px;font-size:0.82rem;font-weight:600;border:1px solid var(--line);background:transparent;color:var(--cream);transition:.2s;white-space:nowrap;}
+  .btn:hover{border-color:var(--gold);color:var(--gold-light);}
+  .btn-gold{background:linear-gradient(135deg,var(--gold-light),var(--gold-deep));color:#1A1409;border:none;}
+  .btn-gold:hover{box-shadow:0 8px 22px -8px rgba(196,162,95,0.6);color:#1A1409;}
+  .btn:disabled{opacity:0.45;cursor:not-allowed;}
+  .btn svg{width:15px;height:15px;flex:none;}
+
+  /* ---------- hero ---------- */
+  .hero{padding:4.2rem 0 2.6rem;position:relative;overflow:hidden;}
+  .hero::before{content:"";position:absolute;top:-20%;right:-10%;width:520px;height:520px;background:radial-gradient(circle, rgba(196,162,95,0.10), transparent 65%);pointer-events:none;}
+  .eyebrow{font-family:'JetBrains Mono',monospace;font-size:0.7rem;letter-spacing:0.24em;text-transform:uppercase;color:var(--gold);display:flex;align-items:center;gap:0.7em;margin-bottom:1rem;}
+  .eyebrow::before{content:"";width:20px;height:1px;background:var(--gold);}
+  .hero h1{font-size:clamp(2rem,4.6vw,3.1rem);max-width:16ch;}
+  .hero h1 em{font-style:normal;color:var(--gold-light);}
+  .hero p{color:var(--muted);max-width:56ch;margin-top:1.1rem;font-size:1rem;}
+  .sparkle{position:relative;display:inline-block;}
+  .sparkle::after{content:"✦";position:absolute;top:-0.3em;right:-0.9em;font-size:0.5em;color:var(--gold-light);animation:twinkle 2.4s ease-in-out infinite;}
+  @keyframes twinkle{0%,100%{opacity:0.25;transform:scale(0.8);}50%{opacity:1;transform:scale(1.15);}}
+
+  /* ---------- filter panel ---------- */
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:1.8rem;}
+  .filters{display:grid;grid-template-columns:repeat(4,1fr);gap:1rem;margin-bottom:1.3rem;}
+  .field{display:flex;flex-direction:column;gap:0.4rem;}
+  .field label{font-family:'JetBrains Mono',monospace;font-size:0.66rem;letter-spacing:0.1em;text-transform:uppercase;color:var(--muted);}
+  .field input,.field select{background:var(--ink-2);border:1px solid var(--line);border-radius:5px;padding:0.7rem 0.85rem;color:var(--cream);font-size:0.92rem;}
+  .field input:focus,.field select:focus{border-color:var(--gold);}
+  .seg{display:flex;border:1px solid var(--line);border-radius:100px;padding:3px;gap:3px;width:fit-content;}
+  .seg button{background:none;border:none;border-radius:100px;padding:0.5rem 0.95rem;font-size:0.8rem;color:var(--muted);font-weight:600;}
+  .seg button.active{background:var(--gold);color:#1A1409;}
+  .filters-row2{display:flex;justify-content:space-between;align-items:flex-end;gap:1rem;flex-wrap:wrap;}
+  .filters-row2 .field{min-width:220px;}
+  @media (max-width:920px){.filters{grid-template-columns:1fr 1fr;}}
+  @media (max-width:560px){.filters{grid-template-columns:1fr;}}
+
+  /* ---------- results ---------- */
+  .results-bar{display:flex;justify-content:space-between;align-items:center;gap:1rem;flex-wrap:wrap;margin:2.2rem 0 1.1rem;}
+  .results-count{font-size:0.88rem;color:var(--muted);}
+  .results-count b{color:var(--gold-light);font-family:'JetBrains Mono',monospace;}
+  .card-list{display:flex;flex-direction:column;gap:0.7rem;}
+  .lead-card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:1.2rem 1.4rem;display:grid;grid-template-columns:1.6fr 0.9fr 1fr 0.9fr auto;gap:1rem;align-items:center;transition:border-color .2s;}
+  .lead-card:hover{border-color:var(--gold-deep);}
+  .lead-name{font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:1.02rem;}
+  .lead-addr{color:var(--muted-2);font-size:0.8rem;margin-top:0.25rem;}
+  .lead-rating{display:flex;align-items:center;gap:0.4rem;font-family:'JetBrains Mono',monospace;font-size:0.9rem;color:var(--gold-light);}
+  .lead-rating .stars{letter-spacing:1px;}
+  .lead-rating .n{color:var(--muted-2);font-size:0.76rem;}
+  .lead-phone{font-family:'JetBrains Mono',monospace;font-size:0.82rem;color:var(--muted);}
+  .badge{display:inline-flex;align-items:center;gap:0.4rem;padding:0.3rem 0.7rem;border-radius:100px;font-size:0.72rem;font-family:'JetBrains Mono',monospace;border:1px solid var(--line);white-space:nowrap;}
+  .badge.no-site{color:var(--danger);border-color:rgba(185,107,96,0.4);}
+  .badge.has-site{color:var(--good);border-color:rgba(123,180,131,0.4);}
+  .lead-actions{display:flex;flex-direction:column;gap:0.5rem;align-items:flex-end;}
+  .lead-actions .row{display:flex;gap:0.4rem;}
+  .icon-btn{background:none;border:1px solid var(--line);border-radius:5px;padding:0.4rem 0.6rem;font-size:0.72rem;color:var(--muted);}
+  .icon-btn:hover{border-color:var(--gold);color:var(--gold-light);}
+  select.status-sel{background:var(--ink-2);border:1px solid var(--line);color:var(--cream);border-radius:5px;padding:0.4rem 0.5rem;font-size:0.72rem;font-family:'JetBrains Mono',monospace;}
+  .empty-state,.error-state{padding:3.5rem 1rem;text-align:center;color:var(--muted);}
+  .empty-state .big{font-family:'Space Grotesk',sans-serif;font-size:1.3rem;color:var(--cream);margin-bottom:0.5rem;}
+  .error-state{color:var(--danger);}
+  .loading-row{display:flex;align-items:center;gap:0.7rem;color:var(--muted);font-size:0.85rem;padding:2rem 0;justify-content:center;}
+  .spinner{width:16px;height:16px;border-radius:50%;border:2px solid var(--line);border-top-color:var(--gold);animation:spin .8s linear infinite;}
+  @keyframes spin{to{transform:rotate(360deg);}}
+  @media (max-width:900px){
+    .lead-card{grid-template-columns:1fr;align-items:start;}
+    .lead-actions{flex-direction:row;align-items:center;justify-content:space-between;width:100%;}
+  }
+
+  .helper-note{font-size:0.78rem;color:var(--muted-2);margin-top:0.9rem;line-height:1.6;}
+
+  /* ---------- modal ---------- */
+  .modal-overlay{position:fixed;inset:0;background:rgba(13,12,10,0.72);backdrop-filter:blur(3px);z-index:100;display:none;align-items:center;justify-content:center;padding:1.5rem;}
+  .modal-overlay.show{display:flex;}
+  .modal{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);max-width:480px;width:100%;padding:1.9rem;max-height:88vh;overflow:auto;}
+  .modal h2{font-size:1.5rem;margin-bottom:0.5rem;}
+  .modal p{color:var(--muted);font-size:0.86rem;margin:0.5rem 0;}
+  .modal .field{margin:1rem 0;}
+  .modal a.link{color:var(--gold-light);text-decoration:underline;text-underline-offset:2px;}
+  .modal-close{position:absolute;top:1rem;right:1rem;}
+  .modal-actions{display:flex;justify-content:flex-end;gap:0.6rem;margin-top:1.2rem;}
+  .toast{position:fixed;bottom:1.4rem;left:50%;transform:translateX(-50%) translateY(20px);background:var(--gold);color:#1A1409;padding:0.7rem 1.2rem;border-radius:100px;font-size:0.85rem;font-weight:600;opacity:0;transition:.25s;z-index:200;pointer-events:none;}
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
+
+  footer{border-top:1px solid var(--line);margin-top:4rem;padding:2.2rem 0;color:var(--muted-2);font-size:0.78rem;}
+  footer .wrap{display:flex;justify-content:space-between;flex-wrap:wrap;gap:0.8rem;}
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="top-inner">
+    <div class="brand">
+      <span class="mark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M4 20l6-6M14 4l6 6-9 9-6-6z"/></svg></span>
+      <span>GARIMPO<small>prospecção de clientes</small></span>
+    </div>
+    <div class="key-status">
+      <span class="key-dot" id="keyDot"></span>
+      <span class="key-label" id="keyLabel">chave não configurada</span>
+      <button class="btn" id="openSettings">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 00.3 1.9l.1.1a2 2 0 11-2.8 2.8l-.1-.1a1.7 1.7 0 00-1.9-.3 1.7 1.7 0 00-1 1.6V21a2 2 0 11-4 0v-.2a1.7 1.7 0 00-1-1.6 1.7 1.7 0 00-1.9.3l-.1.1a2 2 0 11-2.8-2.8l.1-.1a1.7 1.7 0 00.3-1.9 1.7 1.7 0 00-1.6-1H3a2 2 0 110-4h.2a1.7 1.7 0 001.6-1 1.7 1.7 0 00-.3-1.9l-.1-.1a2 2 0 112.8-2.8l.1.1a1.7 1.7 0 001.9.3H9a1.7 1.7 0 001-1.6V3a2 2 0 114 0v.2a1.7 1.7 0 001 1.6 1.7 1.7 0 001.9-.3l.1-.1a2 2 0 112.8 2.8l-.1.1a1.7 1.7 0 00-.3 1.9V9a1.7 1.7 0 001.6 1H21a2 2 0 110 4h-.2a1.7 1.7 0 00-1.6 1z"/></svg>
+        Configurar
+      </button>
+    </div>
+  </div>
+</header>
+
+<section class="hero">
+  <div class="wrap">
+    <div class="eyebrow">Ferramenta de prospecção</div>
+    <h1>Encontre as próximas <span class="sparkle">pepitas</span><br>de <em>clientes.</em></h1>
+    <p>Busca comércios bem avaliados no Google que ainda não têm site — ou têm um site que não faz jus à nota. Os dados vêm direto da API do Google Places, com sua própria chave.</p>
+  </div>
+</section>
+
+<div class="wrap">
+  <div class="panel">
+    <div class="filters">
+      <div class="field">
+        <label for="fTipo">Tipo de comércio</label>
+        <input type="text" id="fTipo" placeholder="Ex: barbearia, pizzaria...">
+      </div>
+      <div class="field">
+        <label for="fCidade">Cidade</label>
+        <input type="text" id="fCidade" placeholder="Ex: São Paulo">
+      </div>
+      <div class="field">
+        <label for="fEstado">Estado</label>
+        <select id="fEstado">
+          <option value="">Todos os estados</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="fMinRating">Nota mínima</label>
+        <input type="number" id="fMinRating" min="0" max="5" step="0.1" placeholder="Ex: 4.5">
+      </div>
+    </div>
+    <div class="filters-row2">
+      <div style="display:flex;gap:2rem;flex-wrap:wrap;">
+        <div class="field">
+          <label>Mostrar</label>
+          <div class="seg" id="segVisibility">
+            <button class="active" data-val="all">Todos</button>
+            <button data-val="no-site">Sem site</button>
+            <button data-val="has-site">Com site</button>
+          </div>
+        </div>
+        <div class="field">
+          <label for="fMinReviews">Mín. de avaliações</label>
+          <input type="number" id="fMinReviews" min="0" step="1" placeholder="0" style="width:110px;">
+        </div>
+        <div class="field">
+          <label for="fSort">Ordenar por</label>
+          <select id="fSort" style="width:220px;">
+            <option value="rating-desc">Melhor avaliação primeiro</option>
+            <option value="rating-asc">Pior avaliação primeiro</option>
+            <option value="reviews-desc">Mais avaliações primeiro</option>
+          </select>
+        </div>
+      </div>
+      <button class="btn btn-gold" id="searchBtn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+        Buscar pepitas
+      </button>
+    </div>
+    <div class="helper-note">A busca retorna até 20 resultados por consulta (limite da API do Google), ordenados aqui pela nota. Para achados mais precisos, use filtros específicos (tipo + cidade). "Sem site" reflete o campo de site cadastrado no perfil do Google — sites fracos ou desatualizados ainda precisam ser conferidos manualmente.</div>
+  </div>
+
+  <div class="results-bar" aria-live="polite">
+    <div class="results-count" id="resultsCount"></div>
+    <button class="btn" id="exportBtn" style="display:none;">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12m0 0l-4-4m4 4l4-4M4 21h16"/></svg>
+      Exportar CSV
+    </button>
+  </div>
+
+  <div id="resultsArea">
+    <div class="empty-state">
+      <div class="big">Nenhuma busca feita ainda</div>
+      Configure sua chave de API e use os filtros acima para começar a garimpar.
+    </div>
+  </div>
+</div>
+
+<footer>
+  <div class="wrap">
+    <span>Garimpo — roda 100% no seu navegador, dados via Google Places API.</span>
+    <span>Sua chave de API fica salva apenas neste dispositivo.</span>
+  </div>
+</footer>
+
+<!-- ===== settings modal ===== -->
+<div class="modal-overlay" id="settingsOverlay">
+  <div class="modal" style="position:relative;">
+    <button class="btn modal-close" id="closeSettings" aria-label="Fechar">✕</button>
+    <h2>Configurar API</h2>
+    <p>Esta ferramenta usa a <strong>Places API (New)</strong> do Google, direto do navegador — não há servidor por trás. Você precisa da sua própria chave.</p>
+    <div class="field">
+      <label for="apiKeyInput">Chave de API do Google Maps</label>
+      <input type="text" id="apiKeyInput" placeholder="AIza...">
+    </div>
+    <p style="font-size:0.78rem;">
+      1. Crie um projeto no <a class="link" href="https://console.cloud.google.com/" target="_blank" rel="noopener">Google Cloud Console</a> e ative a fatura (a API tem uso pago acima da cota gratuita).<br>
+      2. Ative a <strong>"Places API (New)"</strong> em APIs e Serviços.<br>
+      3. Crie uma chave em <a class="link" href="https://console.cloud.google.com/google/maps-apis/credentials" target="_blank" rel="noopener">Credenciais</a> e restrinja por <strong>referenciador HTTP</strong> ao domínio do seu GitHub Pages (ex: <span class="mono">seuusuario.github.io/*</span>) para não deixá-la aberta.
+    </p>
+    <div class="modal-actions">
+      <button class="btn" id="clearKeyBtn">Remover chave</button>
+      <button class="btn btn-gold" id="saveKeyBtn">Salvar chave</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+(function(){
+  /* ---------------- state ---------------- */
+  const UFS = [
+    ['AC','Acre'],['AL','Alagoas'],['AP','Amapá'],['AM','Amazonas'],['BA','Bahia'],
+    ['CE','Ceará'],['DF','Distrito Federal'],['ES','Espírito Santo'],['GO','Goiás'],
+    ['MA','Maranhão'],['MT','Mato Grosso'],['MS','Mato Grosso do Sul'],['MG','Minas Gerais'],
+    ['PA','Pará'],['PB','Paraíba'],['PR','Paraná'],['PE','Pernambuco'],['PI','Piauí'],
+    ['RJ','Rio de Janeiro'],['RN','Rio Grande do Norte'],['RS','Rio Grande do Sul'],
+    ['RO','Rondônia'],['RR','Roraima'],['SC','Santa Catarina'],['SP','São Paulo'],
+    ['SE','Sergipe'],['TO','Tocantins']
+  ];
+  const estadoSel = document.getElementById('fEstado');
+  UFS.forEach(function(u){
+    const opt = document.createElement('option');
+    opt.value = u[0]; opt.textContent = u[0] + ' — ' + u[1];
+    estadoSel.appendChild(opt);
+  });
+
+  const STORAGE_KEY = 'garimpo_gmaps_key';
+  const STATUS_KEY = 'garimpo_lead_status';
+  let visibility = 'all';
+  let mapsLoaded = false;
+  let currentResults = [];
+  let leadStatus = {};
+  try{ leadStatus = JSON.parse(localStorage.getItem(STATUS_KEY) || '{}'); }catch(e){ leadStatus = {}; }
+
+  const STATUS_LABELS = {
+    novo: 'Novo',
+    site_fraco: 'Site fraco',
+    sem_site_confirmado: 'Sem site (confirmado)',
+    contatado: 'Contatado',
+    descartado: 'Descartado'
+  };
+
+  function getApiKey(){ return localStorage.getItem(STORAGE_KEY) || ''; }
+  function updateKeyStatus(){
+    const key = getApiKey();
+    const dot = document.getElementById('keyDot');
+    const label = document.getElementById('keyLabel');
+    if (key){ dot.classList.add('ok'); label.textContent = 'chave configurada'; }
+    else { dot.classList.remove('ok'); label.textContent = 'chave não configurada'; }
+  }
+  updateKeyStatus();
+
+  /* ---------------- settings modal ---------------- */
+  const overlay = document.getElementById('settingsOverlay');
+  function openModal(){
+    document.getElementById('apiKeyInput').value = getApiKey();
+    overlay.classList.add('show');
+  }
+  function closeModal(){ overlay.classList.remove('show'); }
+  document.getElementById('openSettings').addEventListener('click', openModal);
+  document.getElementById('closeSettings').addEventListener('click', closeModal);
+  overlay.addEventListener('click', function(e){ if(e.target === overlay) closeModal(); });
+  document.getElementById('saveKeyBtn').addEventListener('click', function(){
+    const val = document.getElementById('apiKeyInput').value.trim();
+    if (!val){ showToast('Cole uma chave antes de salvar.'); return; }
+    localStorage.setItem(STORAGE_KEY, val);
+    mapsLoaded = false; // force reload with new key
+    updateKeyStatus();
+    closeModal();
+    showToast('Chave salva neste navegador.');
+  });
+  document.getElementById('clearKeyBtn').addEventListener('click', function(){
+    localStorage.removeItem(STORAGE_KEY);
+    document.getElementById('apiKeyInput').value = '';
+    mapsLoaded = false;
+    updateKeyStatus();
+    showToast('Chave removida.');
+  });
+
+  function showToast(msg){
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.classList.add('show');
+    clearTimeout(t._timer);
+    t._timer = setTimeout(function(){ t.classList.remove('show'); }, 2400);
+  }
+
+  /* ---------------- segmented visibility control ---------------- */
+  document.querySelectorAll('#segVisibility button').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      document.querySelectorAll('#segVisibility button').forEach(function(b){ b.classList.remove('active'); });
+      btn.classList.add('active');
+      visibility = btn.dataset.val;
+      renderResults();
+    });
+  });
+  document.getElementById('fSort').addEventListener('change', renderResults);
+
+  /* ---------------- Google Maps loader ---------------- */
+  function loadGoogleMaps(apiKey){
+    return new Promise(function(resolve, reject){
+      if (window.google && window.google.maps && mapsLoaded){ resolve(); return; }
+      window.__garimpoAuthFailure = function(){
+        reject(new Error('Chave de API inválida, sem faturamento ativo, ou sem permissão para este domínio.'));
+      };
+      window.gm_authFailure = window.__garimpoAuthFailure;
+      const existing = document.getElementById('gmapsScript');
+      if (existing) existing.remove();
+      const script = document.createElement('script');
+      script.id = 'gmapsScript';
+      script.src = 'https://maps.googleapis.com/maps/api/js?key=' + encodeURIComponent(apiKey) +
+        '&libraries=places&v=weekly&loading=async&callback=__garimpoReady';
+      window.__garimpoReady = function(){ mapsLoaded = true; resolve(); };
+      script.onerror = function(){ reject(new Error('Não foi possível carregar a API do Google Maps.')); };
+      document.head.appendChild(script);
+    });
+  }
+
+  /* ---------------- search ---------------- */
+  const resultsArea = document.getElementById('resultsArea');
+  const resultsCount = document.getElementById('resultsCount');
+  const exportBtn = document.getElementById('exportBtn');
+
+  document.getElementById('searchBtn').addEventListener('click', runSearch);
+
+  async function runSearch(){
+    const apiKey = getApiKey();
+    if (!apiKey){ openModal(); showToast('Configure sua chave de API primeiro.'); return; }
+
+    setLoading(true);
+    try{
+      await loadGoogleMaps(apiKey);
+      const { Place } = await google.maps.importLibrary('places');
+
+      const tipo = document.getElementById('fTipo').value.trim();
+      const cidade = document.getElementById('fCidade').value.trim();
+      const estado = document.getElementById('fEstado').value;
+      const estadoLabel = estado ? (UFS.find(function(u){return u[0]===estado;}) || [])[1] : '';
+      const minRating = parseFloat(document.getElementById('fMinRating').value);
+      const minReviews = parseInt(document.getElementById('fMinReviews').value, 10) || 0;
+
+      const locParts = [cidade, estadoLabel].filter(Boolean).join(', ');
+      let textQuery = tipo || 'comércios';
+      if (locParts) textQuery += ' em ' + locParts;
+
+      const request = {
+        textQuery: textQuery,
+        fields: ['id','displayName','formattedAddress','location','rating','userRatingCount','websiteUri','nationalPhoneNumber','googleMapsUri','businessStatus'],
+        language: 'pt-BR',
+        region: 'br',
+        maxResultCount: 20
+      };
+      if (!isNaN(minRating) && minRating > 0) request.minRating = minRating;
+
+      const { places } = await Place.searchByText(request);
+
+      currentResults = (places || []).map(function(p){
+        return {
+          id: p.id,
+          name: (p.displayName && p.displayName.text) ? p.displayName.text : (p.displayName || ''),
+          address: p.formattedAddress || '',
+          rating: (typeof p.rating === 'number') ? p.rating : null,
+          reviews: p.userRatingCount || 0,
+          website: p.websiteUri || null,
+          phone: p.nationalPhoneNumber || null,
+          mapsUri: p.googleMapsUri || null
+        };
+      });
+      if (minReviews) currentResults = currentResults.filter(function(r){ return r.reviews >= minReviews; });
+
+      renderResults();
+    } catch(err){
+      console.error(err);
+      showError(err && err.message ? err.message : 'Erro ao buscar. Verifique sua chave de API e tente novamente.');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function setLoading(isLoading){
+    document.getElementById('searchBtn').disabled = isLoading;
+    if (isLoading){
+      resultsArea.innerHTML = '<div class="loading-row"><span class="spinner"></span> Garimpando...</div>';
+      resultsCount.textContent = '';
+      exportBtn.style.display = 'none';
+    }
+  }
+
+  function showError(msg){
+    resultsArea.innerHTML = '<div class="error-state"><div class="big" style="color:var(--danger);">Não foi possível buscar</div>' + escapeHtml(msg) + '</div>';
+    resultsCount.textContent = '';
+    exportBtn.style.display = 'none';
+  }
+
+  function visibleFiltered(){
+    return currentResults.filter(function(r){
+      if (visibility === 'no-site') return !r.website;
+      if (visibility === 'has-site') return !!r.website;
+      return true;
+    });
+  }
+
+  function sortedResults(){
+    const list = visibleFiltered().slice();
+    const sortVal = document.getElementById('fSort').value;
+    list.sort(function(a, b){
+      if (sortVal === 'rating-asc') return (a.rating ?? -1) - (b.rating ?? -1);
+      if (sortVal === 'reviews-desc') return (b.reviews || 0) - (a.reviews || 0);
+      return (b.rating ?? -1) - (a.rating ?? -1); // rating-desc default
+    });
+    return list;
+  }
+
+  function renderResults(){
+    if (!currentResults.length && resultsArea.querySelector('.error-state')) return;
+    const list = sortedResults();
+    const noSiteCount = currentResults.filter(function(r){ return !r.website; }).length;
+
+    if (!currentResults.length){
+      resultsArea.innerHTML = '<div class="empty-state"><div class="big">Nenhuma pepita encontrada</div>Ajuste os filtros e tente de novo.</div>';
+      resultsCount.textContent = '';
+      exportBtn.style.display = 'none';
+      return;
+    }
+
+    resultsCount.innerHTML = '<b>' + currentResults.length + '</b> resultados · <b>' + noSiteCount + '</b> sem site cadastrado';
+    exportBtn.style.display = 'inline-flex';
+
+    if (!list.length){
+      resultsArea.innerHTML = '<div class="empty-state"><div class="big">Nada com esse filtro</div>Tente mudar "Mostrar" para outra opção.</div>';
+      return;
+    }
+
+    resultsArea.innerHTML = '<div class="card-list">' + list.map(renderCard).join('') + '</div>';
+  }
+
+  function renderCard(r){
+    const stars = starString(r.rating);
+    const status = leadStatus[r.id] || 'novo';
+    const siteBadge = r.website
+      ? '<a class="badge has-site" href="'+escapeAttr(r.website)+'" target="_blank" rel="noopener">tem site ↗</a>'
+      : '<span class="badge no-site">sem site</span>';
+    const mapsBtn = r.mapsUri ? '<a class="icon-btn" href="'+escapeAttr(r.mapsUri)+'" target="_blank" rel="noopener">Ver no Maps</a>' : '';
+    return '<div class="lead-card">' +
+      '<div><div class="lead-name">'+escapeHtml(r.name)+'</div><div class="lead-addr">'+escapeHtml(r.address)+'</div></div>' +
+      '<div class="lead-rating"><span class="stars">'+stars+'</span>' + (r.rating!=null ? r.rating.toFixed(1) : '—') + '<span class="n">('+r.reviews+')</span></div>' +
+      '<div class="lead-phone">'+escapeHtml(r.phone || 'sem telefone')+'</div>' +
+      '<div>'+siteBadge+'</div>' +
+      '<div class="lead-actions">' +
+        '<select class="status-sel" data-id="'+escapeAttr(r.id)+'" onchange="window.__garimpoSetStatus(this)">' +
+          Object.keys(STATUS_LABELS).map(function(k){ return '<option value="'+k+'"'+(k===status?' selected':'')+'>'+STATUS_LABELS[k]+'</option>'; }).join('') +
+        '</select>' +
+        '<div class="row">' + mapsBtn +
+          '<button class="icon-btn" onclick="window.__garimpoCopyPitch(\''+escapeAttr(r.id)+'\')">Copiar msg</button>' +
+        '</div>' +
+      '</div>' +
+    '</div>';
+  }
+
+  window.__garimpoSetStatus = function(sel){
+    leadStatus[sel.dataset.id] = sel.value;
+    localStorage.setItem(STATUS_KEY, JSON.stringify(leadStatus));
+    showToast('Status atualizado.');
+  };
+
+  window.__garimpoCopyPitch = function(id){
+    const r = currentResults.find(function(x){ return x.id === id; });
+    if (!r) return;
+    const msg = 'Olá! Vi que a ' + r.name + ' tem uma ótima avaliação no Google' +
+      (r.website ? ', mas achei que o site atual podia render mais clientes.' : ', mas não encontrei um site.') +
+      ' Ajudo pequenos negócios a terem um site simples e profissional para atrair mais gente. Posso te mostrar uma ideia rápida, sem compromisso?';
+    navigator.clipboard.writeText(msg).then(function(){
+      showToast('Mensagem copiada!');
+    }).catch(function(){
+      showToast('Não foi possível copiar automaticamente.');
+    });
+  };
+
+  function starString(rating){
+    if (rating == null) return '—';
+    const full = Math.round(rating);
+    return '★'.repeat(full) + '☆'.repeat(5 - full);
+  }
+
+  function escapeHtml(str){
+    return String(str || '').replace(/[&<>"']/g, function(c){
+      return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c];
+    });
+  }
+  function escapeAttr(str){ return escapeHtml(str).replace(/"/g,'&quot;'); }
+
+  /* ---------------- CSV export ---------------- */
+  exportBtn.addEventListener('click', function(){
+    const list = sortedResults();
+    const rows = [['Nome','Endereço','Nota','Avaliações','Telefone','Site','Google Maps','Status']];
+    list.forEach(function(r){
+      rows.push([
+        r.name, r.address, r.rating != null ? r.rating.toFixed(1) : '',
+        r.reviews, r.phone || '', r.website || '', r.mapsUri || '',
+        STATUS_LABELS[leadStatus[r.id] || 'novo']
+      ]);
+    });
+    const csv = rows.map(function(row){
+      return row.map(function(v){
+        v = String(v == null ? '' : v);
+        if (/[",\n]/.test(v)) v = '"' + v.replace(/"/g, '""') + '"';
+        return v;
+      }).join(',');
+    }).join('\r\n');
+    const blob = new Blob(['\uFEFF' + csv], {type:'text/csv;charset=utf-8;'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = 'garimpo-leads.csv'; a.click();
+    URL.revokeObjectURL(url);
+  });
+
+  /* ---------------- enter-to-search ---------------- */
+  ['fTipo','fCidade','fMinRating','fMinReviews'].forEach(function(id){
+    document.getElementById(id).addEventListener('keydown', function(e){
+      if (e.key === 'Enter') runSearch();
+    });
+  });
+
+  if (!getApiKey()) setTimeout(openModal, 400);
+})();
+</script>
+</body>
+</html>
